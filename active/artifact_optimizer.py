@@ -51,18 +51,30 @@
 #    we optimize for DPS
 # ===============================================
 
+
+# ===============================================
+# Fact-checking:
+# ===============================================
+# This has been fact-checked by comparing results
+# of
+
+# ofc, any discovery of potential bugs is welcome
+# plz dm me on LisaMains server at Patatartiner#5916
+# ===============================================
+
+
 # NOTICE: rolls_cap is not enabled. TODO
 
-MAX_ROLLS=25
-dp_stat_order = [ATK_Pb, ER_Pb, CRCDb]
+MAX_ROLLS=5
+dp_stat_order = ["ATKb", "ERb", "CRCDb"]
 max_num_stats = len(dp_stat_order)
 
 
 # ------------------------------------------------
 # create max_dmg/max_config arrays for fast access
 # ------------------------------------------------
-dp_statlv = [[(0,None) for i in range(max_num_stats)]
-             for j in range(MAX_ROLLS)]
+dp_statlv = [[(0,None) for i in range(max_num_stats+1)]
+             for j in range(MAX_ROLLS+1)]
 
 crcdlv = [(0, None) for j in range(MAX_ROLLS)]
 # ------------------------------------------------
@@ -72,19 +84,23 @@ crcdlv = [(0, None) for j in range(MAX_ROLLS)]
 # damage formulae
 # ------------------------------------------------
 def transformative_em_rolls_dmg(_rolls_em, _curr_stats):
-  return 0
+  return _rolls_em*2-3
 
 def atk_rolls_dmg(_rolls_atk, _curr_stats):
-  return 0
+  return _rolls_atk*1.5
 
 def er_rolls_dmg_multi(_rolls_er, _curr_stats):
   # returns damage for most optimal playstyle
-  return 0
+  return _rolls_er+2
+
+def crcd_rolls_dmg_calcd(_rolls, _curr_stats):
+  return crcdlv[_rolls][0]
 
 def crcd_rolls_dmg(_rolls_cr, _rolls_cd, _curr_stats):
-  return 0
+  return (1-_rolls_cr)+(_rolls_cr)*(_rolls_cd)
 
-stat_rolls_dmg = [atk_rolls_dmg, er_rolls_dmg_multi, crcd_rolls_dmg]
+stat_rolls_dmg = [atk_rolls_dmg, er_rolls_dmg_multi,
+                  crcd_rolls_dmg_calcd]
 # ------------------------------------------------
 
 def artifact_optimizer_default(curr_stats,
@@ -115,7 +131,7 @@ def first_level(max_rolls,
   curr_max_dmg = 1
   curr_max_config = None
   for i in range(max_rolls):
-    other_dmg = dp_statlv[max_rolls-i][max_num_stats]
+    other_dmg = dp_statlv[max_rolls-i][max_num_stats][0]
     transf_dmg = transformative_em_rolls_dmg(i, curr_stats)
 
     new_dmg = other_dmg + transf_dmg
@@ -124,43 +140,51 @@ def first_level(max_rolls,
       curr_max_config = i
   return (curr_max_dmg, curr_max_config)
 
+def print_dp_statlv():
+  for i in dp_statlv:
+    print(i)
 
 def second_level(rolls_used, curr_stats,
                  num_calc_stats,
                  rolls_cap=None,
                  max_rolls=MAX_ROLLS):
 
-  if (dp_statlv[rolls_used][num_calc_stats][1] is not None):
-    return dp_statlv[rolls_used, num_calc_stats]
+  print_dp_statlv()
+
+  ncs = num_calc_stats
+  stat_i = num_calc_stats - 1 # sorry indexing is weird
+  prev_calc = num_calc_stats - 1
+  tmp_stat_i_config = 0
+
+
+  print("rolls used ", rolls_used, " ncs ", ncs)
+  if (dp_statlv[rolls_used][ncs][1] is not None):
+    return dp_statlv[rolls_used][ncs]
 
   curr_max_dmg = 1
   curr_max_config = [0,0,0]
 
   # base cases (1,[0,0,0])
-  if(num_calc_stats = 0): return (curr_max_dmg, curr_max_config)
-  if(rolls_used = 0): return (curr_max_dmg, curr_max_config)
-
-  prev_calc = num_calc_stats - 1 # sorry the indexing is weird
-  stat_i = num_calc_stats - 1
-  tmp_stat_i_config = 0
+  if(num_calc_stats == 0): return (curr_max_dmg, curr_max_config)
+  if(rolls_used == 0): return (curr_max_dmg, curr_max_config)
 
   for i in range(rolls_used):
-    dp_statlv[rolls_used-i][prev_calc] = second_level(rolls_used-i,
-                                                      curr_stats,
-                                                      prev_calc,
-                                                      rolls_cal, max_rolls)
+    stat_dmg, stat_config = second_level(rolls_used-i,
+                                         curr_stats,
+                                         prev_calc,
+                                         rolls_cap, max_rolls)
 
-    new_dmg = dp_statlv[rolls_used-i][prev_calc][0]
+    new_dmg = stat_dmg
     new_dmg *= stat_rolls_dmg[stat_i](tmp_stat_i_config, curr_stats)
     if (new_dmg > curr_max_dmg):
       curr_max_dmg = new_dmg
-      curr_max_config = dp_statlv[rolls_used-i][prev_calc][1]
+      curr_max_config = stat_config
       curr_max_config[stat_i] = tmp_stat_i_config
 
     tmp_stat_i_config += 1
 
-  dp_statlv[rolls_used, num_calc_stats] = (curr_max_dmg, curr_max_config)
-  return dp_statlv[rolls_used, num_calc_stats]
+  dp_statlv[rolls_used][ncs] = (curr_max_dmg, curr_max_config)
+  return dp_statlv[rolls_used][ncs]
 
 
 def third_level(rolls_used, curr_stats,
